@@ -130,7 +130,7 @@ jl_datatype_t *jl_boundserror_type;
 jl_value_t *jl_memory_exception;
 jl_value_t *jl_readonlymemory_exception;
 
-jl_cgparams_t jl_default_cgparams = {1, 1, 1, 1, 0, NULL, NULL, NULL};
+jl_cgparams_t jl_default_cgparams = {1, 1, 1, 0, NULL, NULL, NULL};
 
 // --- type properties and predicates ---
 
@@ -2082,7 +2082,7 @@ void jl_init_types(void)
     jl_method_instance_type =
         jl_new_datatype(jl_symbol("MethodInstance"), core,
                         jl_any_type, jl_emptysvec,
-                        jl_perm_symsvec(16,
+                        jl_perm_symsvec(14,
                             "def",
                             "specTypes",
                             "rettype",
@@ -2096,9 +2096,8 @@ void jl_init_types(void)
                             "jlcall_api",
                             "",
                             "fptr",
-                            "unspecialized_ducttape",
-                            "", ""),
-                        jl_svec(16,
+                            "fptr_specsig"),
+                        jl_svec(14,
                             jl_new_struct(jl_uniontype_type, jl_method_type, jl_module_type),
                             jl_any_type,
                             jl_any_type,
@@ -2112,8 +2111,7 @@ void jl_init_types(void)
                             jl_uint8_type,
                             jl_bool_type,
                             jl_any_type, // void*
-                            jl_any_type, // void*
-                            jl_any_type, jl_any_type), // void*, void*
+                            jl_any_type), // void*
                         0, 1, 4);
 
     // all kinds of types share a method table
@@ -2196,8 +2194,6 @@ void jl_init_types(void)
     jl_svecset(jl_method_type->types, 10, jl_method_instance_type);
     jl_svecset(jl_method_instance_type->types, 12, jl_voidpointer_type);
     jl_svecset(jl_method_instance_type->types, 13, jl_voidpointer_type);
-    jl_svecset(jl_method_instance_type->types, 14, jl_voidpointer_type);
-    jl_svecset(jl_method_instance_type->types, 15, jl_voidpointer_type);
 
     jl_compute_field_offsets(jl_datatype_type);
     jl_compute_field_offsets(jl_typename_type);
