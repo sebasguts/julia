@@ -1506,6 +1506,11 @@ end
 @deprecate showcompact(io, x) show(IOContext(io, :compact => true), x)
 @deprecate sprint(::typeof(showcompact), args...) sprint(show, args...; context=:compact => true)
 
+# Special string deprecation
+@deprecate start(s::AbstractString) firstindex(s)
+@deprecate next(s::AbstractString, i::Integer) iterate(s, i)
+@deprecate done(s::AbstractString, i::Integer) i > ncodeunits(s)
+
 # END 0.7 deprecations
 
 # BEGIN 1.0 deprecations
