@@ -18,9 +18,6 @@
 #include "llvm/ExecutionEngine/ObjectMemoryBuffer.h"
 #include "llvm/ExecutionEngine/JITEventListener.h"
 
-#include "llvm/IR/LegacyPassManager.h"
-extern legacy::PassManager *jl_globalPM;
-
 #include <llvm/Target/TargetMachine.h>
 #include "julia_assert.h"
 
@@ -30,7 +27,6 @@ extern "C" {
 extern TargetMachine *jl_TargetMachine;
 extern Module *shadow_output;
 extern bool imaging_mode;
-
 
 void addTargetPasses(legacy::PassManagerBase *PM, TargetMachine *TM);
 void addOptimizationPasses(legacy::PassManagerBase *PM, int opt_level, bool dump_native=false);

@@ -109,9 +109,6 @@ namespace llvm {
 #include "processor.h"
 #include "julia_assert.h"
 
-// LLVM version compatibility macros
-legacy::PassManager *jl_globalPM;
-
 #if JL_LLVM_VERSION >= 40000
 #define DIFlagZero (DINode::FlagZero)
 #else
@@ -6994,10 +6991,6 @@ extern "C" void jl_init_codegen(void)
     box64_func = boxfunc_llvm(ft2arg(T_pjlvalue, T_pjlvalue, T_int64),
                               "jl_box64", &jl_box64, m);
     jl_init_intrinsic_functions_codegen(m);
-
-    jl_globalPM = new legacy::PassManager();
-    addTargetPasses(jl_globalPM, jl_TargetMachine);
-    addOptimizationPasses(jl_globalPM, jl_options.opt_level);
 }
 
 // the rest of this file are convenience functions

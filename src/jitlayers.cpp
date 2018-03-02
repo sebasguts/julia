@@ -8,22 +8,8 @@
 #include <iostream>
 #include <sstream>
 
-#include <llvm/Analysis/TargetTransformInfo.h>
-#include <llvm/CodeGen/Passes.h>
-#include <llvm/CodeGen/AsmPrinter.h>
-#include <llvm/CodeGen/MachineModuleInfo.h>
-#include <llvm/CodeGen/TargetPassConfig.h>
-#include <llvm/MC/MCAsmInfo.h>
-#include <llvm/MC/MCStreamer.h>
-#include <llvm/IR/LegacyPassManagers.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-
-// target support
-#include <llvm/ADT/Triple.h>
-#include <llvm/IR/DataLayout.h>
-#include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/DynamicLibrary.h>
-#include <llvm/Target/TargetMachine.h>
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/FormattedStream.h>
@@ -42,71 +28,6 @@ using namespace llvm;
 RTDyldMemoryManager* createRTDyldMemoryManager(void);
 
 void jl_init_jit(void) { }
-
-/// addPassesToX helper drives creation and initialization of TargetPassConfig.
-#if JL_LLVM_VERSION >= 50000
-static MCContext *
-addPassesToGenerateCode(LLVMTargetMachine *TM, PassManagerBase &PM) {
-    TargetPassConfig *PassConfig = TM->createPassConfig(PM);
-#if JL_LLVM_VERSION < 60000
-    PassConfig->setStartStopPasses(nullptr, nullptr, nullptr, nullptr);
-#endif
-    PassConfig->setDisableVerify(false);
-    PM.add(PassConfig);
-    MachineModuleInfo *MMI = new MachineModuleInfo(TM);
-    PM.add(MMI);
-    if (PassConfig->addISelPasses())
-        return NULL;
-    PassConfig->addMachinePasses();
-    PassConfig->setInitialized();
-    return &MMI->getContext();
-}
-#else
-static MCContext *
-addPassesToGenerateCode(LLVMTargetMachine *TM, PassManagerBase &PM) {
-  // When in emulated TLS mode, add the LowerEmuTLS pass.
-  if (TM->Options.EmulatedTLS)
-    PM.add(createLowerEmuTLSPass(TM));
-
-  PM.add(createPreISelIntrinsicLoweringPass());
-
-  // Add internal analysis passes from the target machine.
-  PM.add(createTargetTransformInfoWrapperPass(TM->getTargetIRAnalysis()));
-
-  // Targets may override createPassConfig to provide a target-specific
-  // subclass.
-  TargetPassConfig *PassConfig = TM->createPassConfig(PM);
-  PassConfig->setStartStopPasses(nullptr, nullptr, nullptr);
-
-  // Set PassConfig options provided by TargetMachine.
-  PassConfig->setDisableVerify(false);
-
-  PM.add(PassConfig);
-
-  PassConfig->addIRPasses();
-
-  PassConfig->addCodeGenPrepare();
-
-  PassConfig->addPassesToHandleExceptions();
-
-  PassConfig->addISelPrepare();
-
-  MachineModuleInfo &MMI = TM->addMachineModuleInfo(PM);
-  TM->addMachineFunctionAnalysis(PM, nullptr);
-
-  // Disable FastISel with -O0
-  TM->setO0WantsFastISel(false);
-
-  if (PassConfig->addInstSelector())
-    return nullptr;
-
-  PassConfig->addMachinePasses();
-
-  PassConfig->setInitialized();
-
-  return &MMI.getContext();
-}
-#endif
 
 // Snooping on which functions are being compiled, and how long it takes
 JL_STREAM *dump_compiles_stream = NULL;
@@ -358,128 +279,6 @@ jl_generic_fptr_t jl_generate_fptr_for_unspecialized(jl_method_instance_t *unspe
     return fptr;
 }
 
-// --- native code info, and dump function to IR and ASM ---
-// Get pointer to llvm::Function instance, compiling if necessary
-// for use in reflection from Julia.
-// this is paired with jl_dump_function_ir and jl_dump_function_asm in particular ways:
-// misuse will leak memory or cause read-after-free
-extern "C" JL_DLLEXPORT
-void *jl_get_llvmf_defn(jl_method_instance_t *linfo, size_t world, char getwrapper, char optimize, const jl_cgparams_t params)
-{
-    if (jl_is_method(linfo->def.method) && linfo->def.method->source == NULL &&
-            linfo->def.method->generator == NULL) {
-        // not a generic function
-        return NULL;
-    }
-
-    // get the source code for this function
-    jl_code_info_t *src = (jl_code_info_t*)linfo->inferred;
-    JL_GC_PUSH1(&src);
-    if (!src || (jl_value_t*)src == jl_nothing) {
-        src = jl_type_infer(&linfo, world, 0);
-        if (!src && jl_is_method(linfo->def.method))
-            src = linfo->def.method->generator ? jl_code_for_staged(linfo) : (jl_code_info_t*)linfo->def.method->source;
-    }
-    if ((jl_value_t*)src == jl_nothing)
-        src = NULL;
-    if (src && !jl_is_code_info(src) && jl_is_method(linfo->def.method))
-        src = jl_uncompress_ast(linfo->def.method, (jl_array_t*)src);
-
-    // emit this function into a new module
-    if (src && jl_is_code_info(src)) {
-        jl_codegen_params_t output;
-        output.world = world;
-        output.params = &params;
-        std::unique_ptr<Module> m;
-        jl_llvm_functions_t decls;
-        jl_value_t *rettype;
-        uint8_t api;
-        JL_LOCK(&codegen_lock);
-        std::tie(m, decls, rettype, api) = jl_compile_linfo1(linfo, src, output);
-
-        Function *F = NULL;
-        if (m) {
-            // if compilation succeeded, prepare to return the result
-            const std::string *fname;
-            if (!getwrapper && !decls.specFunctionObject.empty())
-                fname = &decls.specFunctionObject;
-            else
-                fname = &decls.functionObject;
-            if (optimize)
-                jl_globalPM->run(*m.get());
-            F = cast<Function>(m->getNamedValue(*fname));
-            m.release(); // the return object `llvmf` will be the owning pointer
-        }
-        JL_GC_POP();
-        JL_UNLOCK(&codegen_lock); // Might GC
-        if (F)
-            return F;
-    }
-
-    const char *mname = name_from_method_instance(linfo);
-    jl_errorf("unable to compile source for function %s", mname);
-}
-
-void jl_strip_llvm_debug(Module *m);
-
-// get a native assembly for llvm::Function
-extern "C" JL_DLLEXPORT
-jl_value_t *jl_dump_llvm_asm(void *F, const char* asm_variant)
-{
-    // precise printing via IR assembler
-    SmallVector<char, 4096> ObjBufferSV;
-    { // scope block
-        Function *f = (Function*)F;
-        llvm::raw_svector_ostream asmfile(ObjBufferSV);
-        assert(!f->isDeclaration());
-        std::unique_ptr<Module> m(f->getParent());
-        for (auto &f2 : m->functions()) {
-            if (f != &f2 && !f->isDeclaration())
-                f2.deleteBody();
-        }
-        jl_strip_llvm_debug(m.get());
-        legacy::PassManager PM;
-        LLVMTargetMachine *TM = static_cast<LLVMTargetMachine*>(jl_TargetMachine);
-        MCContext *Context = addPassesToGenerateCode(TM, PM);
-        if (Context) {
-#if JL_LLVM_VERSION >= 60000
-            const MCSubtargetInfo &STI = *TM->getMCSubtargetInfo();
-#endif
-            const MCAsmInfo &MAI = *TM->getMCAsmInfo();
-            const MCRegisterInfo &MRI = *TM->getMCRegisterInfo();
-            const MCInstrInfo &MII = *TM->getMCInstrInfo();
-            unsigned OutputAsmDialect = MAI.getAssemblerDialect();
-            if (!strcmp(asm_variant, "att"))
-                OutputAsmDialect = 0;
-            if (!strcmp(asm_variant, "intel"))
-                OutputAsmDialect = 1;
-            MCInstPrinter *InstPrinter = TM->getTarget().createMCInstPrinter(
-                TM->getTargetTriple(), OutputAsmDialect, MAI, MII, MRI);
-            MCAsmBackend *MAB = TM->getTarget().createMCAsmBackend(
-#if JL_LLVM_VERSION >= 60000
-                STI, MRI, TM->Options.MCOptions
-#elif JL_LLVM_VERSION >= 40000
-                MRI, TM->getTargetTriple().str(), TM->getTargetCPU(), TM->Options.MCOptions
-#else
-                MRI, TM->getTargetTriple().str(), TM->getTargetCPU()
-#endif
-                );
-            auto FOut = llvm::make_unique<formatted_raw_ostream>(asmfile);
-            MCCodeEmitter *MCE = nullptr;
-            std::unique_ptr<MCStreamer> S(TM->getTarget().createAsmStreamer(
-                *Context, std::move(FOut), true,
-                true, InstPrinter, MCE, MAB, false));
-            AsmPrinter *Printer =
-                TM->getTarget().createAsmPrinter(*TM, std::move(S));
-            if (Printer) {
-                PM.add(Printer);
-                PM.run(*m);
-            }
-        }
-        delete f;
-    }
-    return jl_pchar_to_string(ObjBufferSV.data(), ObjBufferSV.size());
-}
 
 // get a native disassembly for linfo
 extern "C" JL_DLLEXPORT

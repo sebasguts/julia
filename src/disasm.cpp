@@ -318,7 +318,7 @@ void jl_strip_llvm_debug(Module *m)
 // print an llvm IR acquired from jl_get_llvmf
 // warning: this takes ownership of, and destroys, f->getParent()
 extern "C" JL_DLLEXPORT
-jl_value_t *jl_dump_function_ir(void *f, bool strip_ir_metadata, bool dump_module)
+jl_value_t *jl_dump_function_ir(void *f, char strip_ir_metadata, char dump_module)
 {
     std::string code;
     llvm::raw_string_ostream stream(code);
