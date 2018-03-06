@@ -378,7 +378,7 @@ function _ldiv_basic(F::QRSparse, B::StridedVecOrMat)
     LinearAlgebra.lmul!(adjoint(F.Q), X0)
 
     # Zero out to get basic solution
-    X[rnk + 1:end, :] = 0
+    X[rnk + 1:end, :] .= 0
 
     # Solve R*X = B
     LinearAlgebra.ldiv!(UpperTriangular(view(F.R, :, Base.OneTo(rnk))), view(X0, Base.OneTo(rnk), :))
