@@ -81,4 +81,9 @@ end
     @test A*xs ≈ A*xd
 end
 
+@testset "Issue 26367" begin
+    A = sparse([0.0 1 0 0; 0 0 0 0])
+    @test Matrix(qrfact(A).Q) == Matrix(qrfact(Matrix(A)).Q) == Matrix(I, 2, 2)
+end
+
 end
