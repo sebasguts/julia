@@ -206,6 +206,27 @@ abstract type Payload end
     payload::Ptr{Cvoid}
 end
 
+@kwdef struct CallbackPayload
+    sideband_progress::Ptr{Cvoid}
+    completion::Ptr{Cvoid}
+    credentials::Ptr{Cvoid}
+    certificate_check::Ptr{Cvoid}
+    transfer_progress::Ptr{Cvoid}
+    update_tips::Ptr{Cvoid}
+    pack_progress::Ptr{Cvoid}
+    push_transfer_progress::Ptr{Cvoid}
+    push_update_reference::Ptr{Cvoid}
+    push_negotiation::Ptr{Cvoid}
+    transport::Ptr{Cvoid}
+end
+
+function payload_unpack(callback_payload_ptr::Ptr{Cvoid}, name::Symbol)
+    @assert callback_payload_ptr != C_NULL
+    callback_payload = unsafe_pointer_to_objref(callback_payload_ptr)::CallbackPayload
+    return getfield(callback_payload, name)
+end
+
+
 """
     LibGit2.RemoteCallbacks
 
@@ -215,14 +236,33 @@ Matches the [`git_remote_callbacks`](https://libgit2.github.com/libgit2/#HEAD/ty
 struct RemoteCallbacks
     cb::RemoteCallbacksStruct
     gcroot::Ref{Any}
-    function RemoteCallbacks(; payload::Union{Payload, Nothing}=nothing, kwargs...)
-        p = Ref{Any}(payload)
-        if payload === nothing
-            pp = C_NULL
-        else
-            pp = unsafe_load(Ptr{Ptr{Cvoid}}(Base.unsafe_convert(Ptr{Any}, p)))
+    function RemoteCallbacks(; version::Cuint=Cuint(1), payload::Ptr{Cvoid}=C_NULL, callbacks...)
+        callback_kwargs = Dict{Symbol, Ptr{Cvoid}}()
+        payload_kwargs = Dict{Symbol, Ptr{Cvoid}}()
+
+        for (name, value) in callbacks
+            if value isa Tuple{Ptr{Cvoid}, Ptr{Cvoid}}
+                callback_kwargs[name], payload_kwargs[name] = value
+            elseif value isa Ptr{Cvoid}
+                callback_kwargs[name] = value
+            else
+                throw(ArgumentError(
+                    "Callbacks need to be either a cfunction `Ptr{Cvoid}` or a cfunction " *
+                    "and a payload `Tuple{Ptr{Cvoid}, Ptr{Cvoid}}`"
+                ))
+            end
         end
-        return new(RemoteCallbacksStruct(; kwargs..., payload=pp), p)
+
+        p = if !isempty(payload_kwargs) && payload === C_NULL
+            Ref{Any}(CallbackPayload(; payload_kwargs...))
+        elseif isempty(payload_kwargs) && payload !== C_NULL
+            Ref{Any}(payload)
+        else
+            throw(ArgumentError("Using the `payload` keyword is not supported when using per callback payloads"))
+        end
+
+        pp = unsafe_load(Ptr{Ptr{Cvoid}}(Base.unsafe_convert(Ptr{Any}, p)))
+        return new(RemoteCallbacksStruct(; version=version, payload=pp, callback_kwargs...), p)
     end
 end
 

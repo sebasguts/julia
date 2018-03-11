@@ -265,8 +265,9 @@ function credentials_callback(libgit2credptr::Ptr{Ptr{Cvoid}}, url_ptr::Cstring,
     err = Cint(0)
 
     # get `CredentialPayload` object from payload pointer
-    @assert payload_ptr != C_NULL
-    p = unsafe_pointer_to_objref(payload_ptr)::CredentialPayload
+    credential_payload_ptr = payload_unpack(payload_ptr, :credentials)
+    @assert credential_payload_ptr != C_NULL
+    p = unsafe_pointer_to_objref(credential_payload_ptr)::CredentialPayload
 
     # Parse URL only during the first call to this function. Future calls will use the
     # information cached inside the payload.
