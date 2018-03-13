@@ -275,7 +275,7 @@ function fetch(repo::GitRepo; remote::AbstractString="origin",
         GitRemoteAnon(repo, remoteurl)
     end
     result = try
-        callbacks = RemoteCallbacks(credentials=(credentials_cb(), pointer_from_objref(p)))
+        callbacks = RemoteCallbacks(credentials=(credentials_cb(), p))
         fo = FetchOptions(callbacks=callbacks)
         fetch(rmt, refspecs, msg="from $(url(rmt))", options=fo)
     catch err
@@ -318,7 +318,7 @@ function push(repo::GitRepo; remote::AbstractString="origin",
         GitRemoteAnon(repo, remoteurl)
     end
     result = try
-        callbacks = RemoteCallbacks(credentials=(credentials_cb(), pointer_from_objref(p)))
+        callbacks = RemoteCallbacks(credentials=(credentials_cb(), p))
         push_opts = PushOptions(callbacks=callbacks)
         push(rmt, refspecs, force=force, options=push_opts)
     catch err
@@ -532,7 +532,7 @@ function clone(repo_url::AbstractString, repo_path::AbstractString;
     lbranch = Base.cconvert(Cstring, branch)
     GC.@preserve lbranch begin
         p = reset!(deprecate_nullable_creds(:clone, "repo_url, repo_path", payload))
-        callbacks = RemoteCallbacks(credentials = (credentials_cb(), pointer_from_objref(p)))
+        callbacks = RemoteCallbacks(credentials = (credentials_cb(), p))
         fetch_opts = FetchOptions(callbacks = callbacks)
         clone_opts = CloneOptions(
                     bare = Cint(isbare),

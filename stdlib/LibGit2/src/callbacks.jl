@@ -339,8 +339,7 @@ end
 function credentials_callback(libgit2credptr::Ptr{Ptr{Cvoid}}, url_ptr::Cstring,
                               username_ptr::Cstring, allowed_types::Cuint,
                               payloads::RemotePayloads)
-    @assert payloads.credentials !== C_NULL
-    p = unsafe_pointer_to_objref(payloads.credentials)::CredentialPayload
+    p = payloads.payloads[:credentials]
     credentials_callback(libgit2credptr, url_ptr, username_ptr, allowed_types, p)
 end
 

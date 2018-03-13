@@ -205,17 +205,7 @@ end
 end
 
 @kwdef struct RemotePayloads
-    sideband_progress::Ptr{Cvoid}
-    completion::Ptr{Cvoid}
-    credentials::Ptr{Cvoid}
-    certificate_check::Ptr{Cvoid}
-    transfer_progress::Ptr{Cvoid}
-    update_tips::Ptr{Cvoid}
-    pack_progress::Ptr{Cvoid}
-    push_transfer_progress::Ptr{Cvoid}
-    push_update_reference::Ptr{Cvoid}
-    push_negotiation::Ptr{Cvoid}
-    transport::Ptr{Cvoid}
+    payloads::Dict{Symbol, Any}
 end
 
 """
@@ -229,10 +219,10 @@ struct RemoteCallbacks
     gcroot::Ref{Any}
     function RemoteCallbacks(; version::Cuint=Cuint(1), payload::Ptr{Cvoid}=C_NULL, callbacks...)
         callback_kwargs = Dict{Symbol, Ptr{Cvoid}}()
-        payload_kwargs = Dict{Symbol, Ptr{Cvoid}}()
+        payload_kwargs = Dict{Symbol, Any}()
 
         for (name, value) in callbacks
-            if value isa Tuple{Ptr{Cvoid}, Ptr{Cvoid}}
+            if value isa Tuple{Ptr{Cvoid}, Any}
                 callback_kwargs[name], payload_kwargs[name] = value
             elseif value isa Ptr{Cvoid}
                 callback_kwargs[name] = value
@@ -245,7 +235,7 @@ struct RemoteCallbacks
         end
 
         p = if !isempty(payload_kwargs) && payload === C_NULL
-            Ref{Any}(RemotePayloads(; payload_kwargs...))
+            Ref{Any}(RemotePayloads(payload_kwargs))
         elseif isempty(payload_kwargs) && payload !== C_NULL
             Ref{Any}(payload)
         else
