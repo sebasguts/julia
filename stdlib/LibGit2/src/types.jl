@@ -218,13 +218,6 @@ end
     transport::Ptr{Cvoid}
 end
 
-function payload_unpack(remote_payloads_ptr::Ptr{Cvoid}, name::Symbol)
-    @assert remote_payloads_ptr != C_NULL
-    payloads = unsafe_pointer_to_objref(remote_payloads_ptr)::RemotePayloads
-    return getfield(payloads, name)
-end
-
-
 """
     LibGit2.RemoteCallbacks
 
