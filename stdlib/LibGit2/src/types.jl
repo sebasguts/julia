@@ -188,8 +188,6 @@ The fields represent:
     perfdata_payload::Ptr{Cvoid}
 end
 
-abstract type Payload end
-
 @kwdef struct RemoteCallbacksStruct
     version::Cuint                    = 1
     sideband_progress::Ptr{Cvoid}
@@ -206,7 +204,7 @@ abstract type Payload end
     payload::Ptr{Cvoid}
 end
 
-@kwdef struct CallbackPayload
+@kwdef struct RemotePayloads
     sideband_progress::Ptr{Cvoid}
     completion::Ptr{Cvoid}
     credentials::Ptr{Cvoid}
@@ -220,10 +218,10 @@ end
     transport::Ptr{Cvoid}
 end
 
-function payload_unpack(callback_payload_ptr::Ptr{Cvoid}, name::Symbol)
-    @assert callback_payload_ptr != C_NULL
-    callback_payload = unsafe_pointer_to_objref(callback_payload_ptr)::CallbackPayload
-    return getfield(callback_payload, name)
+function payload_unpack(remote_payloads_ptr::Ptr{Cvoid}, name::Symbol)
+    @assert remote_payloads_ptr != C_NULL
+    payloads = unsafe_pointer_to_objref(remote_payloads_ptr)::RemotePayloads
+    return getfield(payloads, name)
 end
 
 
@@ -254,7 +252,7 @@ struct RemoteCallbacks
         end
 
         p = if !isempty(payload_kwargs) && payload === C_NULL
-            Ref{Any}(CallbackPayload(; payload_kwargs...))
+            Ref{Any}(RemotePayloads(; payload_kwargs...))
         elseif isempty(payload_kwargs) && payload !== C_NULL
             Ref{Any}(payload)
         else
@@ -1290,7 +1288,7 @@ Retains the state between multiple calls to the credential callback for the same
 A `CredentialPayload` instance is expected to be `reset!` whenever it will be used with a
 different URL.
 """
-mutable struct CredentialPayload <: Payload
+mutable struct CredentialPayload
     explicit::Union{AbstractCredential, Nothing}
     cache::Union{CachedCredentials, Nothing}
     allow_ssh_agent::Bool    # Allow the use of the SSH agent to get credentials

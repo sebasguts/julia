@@ -1,7 +1,7 @@
 # This file is a part of Julia. License is MIT: https://julialang.org/license
 
 using LibGit2: AbstractCredential, UserPasswordCredential, SSHCredential,
-    CachedCredentials, CredentialPayload, CallbackPayload
+    CachedCredentials, CredentialPayload, RemotePayloads
 using Base: coalesce
 
 const DEFAULT_PAYLOAD = CredentialPayload(allow_ssh_agent=false, allow_git_helpers=false)
@@ -19,7 +19,7 @@ function credential_loop(
         shred::Bool=true)
     cb = LibGit2.credentials_cb()
     libgitcred_ptr_ptr = Ref{Ptr{Cvoid}}(C_NULL)
-    callback_payload = CallbackPayload(credentials=pointer_from_objref(payload))
+    remote_payloads = RemotePayloads(credentials=pointer_from_objref(payload))
 
     # Number of times credentials were authenticated against. With the real LibGit2
     # credential loop this would be how many times we sent credentials to the remote.
@@ -31,7 +31,7 @@ function credential_loop(
     while err == 0
         err = ccall(cb, Cint, (Ptr{Ptr{Cvoid}}, Cstring, Cstring, Cuint, Any),
                     libgitcred_ptr_ptr, url, coalesce(user, C_NULL),
-                    allowed_types, callback_payload)
+                    allowed_types, remote_payloads)
         num_authentications += 1
 
         # Check if the callback provided us with valid credentials
