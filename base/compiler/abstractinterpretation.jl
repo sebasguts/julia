@@ -724,28 +724,29 @@ function abstract_eval(@nospecialize(e), vtypes::VarTable, sv::InferenceState)
     elseif e.head === :foreigncall
         rt = e.args[2]
         if isa(sv.linfo.def, Method)
-            spsig = sv.linfo.def.sig
-            if isa(spsig, UnionAll)
+            defsig = sv.linfo.def.sig
+            if isa(defsig, UnionAll)
                 if !isempty(sv.linfo.sparam_vals)
                     env = pointer_from_objref(sv.linfo.sparam_vals) + sizeof(Ptr{Cvoid})
-                    rt = ccall(:jl_instantiate_type_in_env, Any, (Any, Any, Ptr{Any}), e.args[2], spsig, env)
+                    rt = ccall(:jl_instantiate_type_in_env, Any, (Any, Any, Ptr{Any}), e.args[2], defsig, env)
                 else
-                    rt = rewrap_unionall(e.args[2], spsig)
+                    rt = rewrap_unionall(e.args[2], defsig)
                 end
             end
         end
         abstract_eval(e.args[1], vtypes, sv)
         for i = 3:length(e.args)
             if abstract_eval(e.args[i], vtypes, sv) === Bottom
-                t = Bottom
+                rt = Bottom
             end
         end
         if rt === Bottom
             t = Bottom
         elseif isa(rt, Type)
             t = rt
-            if isa(t, DataType) && (t::DataType).name === _REF_NAME
-                t = t.parameters[1]
+            u = unwrap_unionall(t)
+            if isa(u, DataType) && (u::DataType).name === _REF_NAME
+                t = u.parameters[1]
                 if t === Any
                     t = Bottom # a return type of Box{Any} is invalid
                 end
@@ -754,6 +755,11 @@ function abstract_eval(@nospecialize(e), vtypes::VarTable, sv::InferenceState)
                 if isa(v,TypeVar)
                     t = UnionAll(v, t)
                 end
+            end
+            # TODO: the above UnionAll wrapping should be sufficient to prevent this,
+            # but in some cases seems not to be.
+            while isa(t,TypeVar)
+                t = t.ub
             end
         else
             t = Any
@@ -817,10 +823,7 @@ function abstract_eval(@nospecialize(e), vtypes::VarTable, sv::InferenceState)
     else
         t = Any
     end
-    if isa(t, TypeVar)
-        # no need to use a typevar as the type of an expression
-        t = t.ub
-    end
+    @assert !isa(t, TypeVar)
     if isa(t, DataType) && isdefined(t, :instance)
         # replace singleton types with their equivalent Const object
         t = Const(t.instance)
