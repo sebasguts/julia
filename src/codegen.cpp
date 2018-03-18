@@ -3758,8 +3758,10 @@ static Function* gen_cfun_wrapper(
     // infer it first, if necessary
     if (lam)
         name = jl_symbol_name(lam->def.method->name);
-    if (lam && !into) {
-        jl_generic_fptr_t fptr = jl_generate_fptr(&lam, world);
+    if (lam && params.cache) {
+        jl_generic_fptr_t fptr;
+        if (into)
+            fptr = jl_generate_fptr(&lam, world);
         if (lam->jlcall_api == JL_API_CONST) {
             // don't need the fptr
         }
@@ -3784,8 +3786,8 @@ static Function* gen_cfun_wrapper(
             jl_printf(JL_STDERR, "WARNING: cfunction: return type of %s does not match\n", name);
         }
     }
-    if (into)
-        lam = NULL; // FIXME?
+    if (!params.cache) // FIXME!
+        lam = NULL;
 
     std::stringstream funcName;
     funcName << "jlcapi_" << name << "_" << globalUnique++;
@@ -3815,7 +3817,7 @@ static Function* gen_cfun_wrapper(
     Function *cw = Function::Create(functype,
             GlobalVariable::ExternalLinkage,
             funcName.str(), M);
-    cw->setAttributes(sig.attributes);
+    cw->setAttributes(attributes);
 #ifdef JL_DISABLE_FPO
     cw->addFnAttr("no-frame-pointer-elim", "true");
 #endif
