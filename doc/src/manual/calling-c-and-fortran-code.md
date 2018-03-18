@@ -185,7 +185,7 @@ an integer less/greater than zero if `a` should appear before/after `b` (or zero
 is permitted). Now, suppose that we have a 1d array `A` of values in Julia that we want to sort
 using the `qsort` function (rather than Julia's built-in `sort` function). Before we worry about
 calling `qsort` and passing arguments, we need to write a comparison function that works for some
-arbitrary type T (which defines `<`):
+arbitrary objects (which define `<`):
 
 ```jldoctest mycompare
 julia> function mycompare(a, b)::Cint
@@ -195,7 +195,7 @@ mycompare (generic function with 1 method)
 ```
 
 Notice that we have to be careful about the return type: `qsort` expects a function returning
-a C `int`, so we annotate the return type of the function be sure it returns a `Cint`.
+a C `int`, so we annotate the return type of the function to be sure it returns a `Cint`.
 
 In order to pass this function to C, we obtain its address using the macro `@cfunction`:
 

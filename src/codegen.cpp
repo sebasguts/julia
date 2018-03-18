@@ -4358,7 +4358,7 @@ static Function* gen_cfun_wrapper(
                         ctx.builder.CreateLoad(emit_bitcast(ctx, val, T_pprjlvalue)),
                         true, jl_any_type);
             }
-            else if (static_at && jl_isbits(jargty)) {
+            else if (static_at && jl_justbits(jargty)) { // anything that can be stored unboxed
                 bool isboxed;
                 Type *T = julia_type_to_llvm(jargty, &isboxed);
                 assert(!isboxed);

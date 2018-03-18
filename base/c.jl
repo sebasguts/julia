@@ -29,7 +29,7 @@ unsafe_convert(::Type{Ptr{Cvoid}}, cf::CFunction) = cf.ptr
     @cfunction(callable, ReturnType, (ArgumentTypes...,)) -> Ptr{Cvoid}
     @cfunction(\$callable, ReturnType, (ArgumentTypes...,)) -> CFunction
 
-Generate a C-callable function pointer from the Julia function `f`
+Generate a C-callable function pointer from the Julia function `closure`
 for the given type signature.
 
 Note that the argument type tuple must be a literal tuple, and not a tuple-valued variable or expression
