@@ -662,7 +662,7 @@ end
     tuplebroadcast(f, longest_tuple(A, Bs...), A, Bs...)
 @inline tuplebroadcast(f, ::NTuple{N,Any}, As...) where {N} =
     ntuple(k -> f(tuplebroadcast_getargs(As, k)...), Val(N))
-@inline tuplebroadcast(f, ::NTuple{N,Any}, ::Type{T}, As...) where {N,T} =
+@inline tuplebroadcast(f, ::NTuple{N,Any}, ::Ref{Type{T}}, As...) where {N,T} =
     ntuple(k -> f(T, tuplebroadcast_getargs(As, k)...), Val(N))
 longest_tuple(A::Tuple, B::Tuple, Bs...) = longest_tuple(_longest_tuple(A, B), Bs...)
 longest_tuple(A, B::Tuple, Bs...) = longest_tuple(B, Bs...)
