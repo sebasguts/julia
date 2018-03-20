@@ -207,8 +207,8 @@ rand(::Type{X}) where {X} = rand(GLOBAL_RNG, X)
 
 #### arrays
 
+rand!(A::AbstractArray) = rand!(GLOBAL_RNG, A)
 rand!(A::AbstractArray{T}, X) where {T} = rand!(GLOBAL_RNG, A, X)
-rand!(A::AbstractArray{T}, ::Type{X}=T) where {T,X} = rand!(GLOBAL_RNG, A, X)
 
 rand!(rng::AbstractRNG, A::AbstractArray{T}, X) where {T} = rand!(rng, A, Sampler(rng, X))
 rand!(rng::AbstractRNG, A::AbstractArray{T}, ::Type{X}=T) where {T,X} = rand!(rng, A, Sampler(rng, X))
